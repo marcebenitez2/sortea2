@@ -28,10 +28,13 @@ import {
 
 const DEFAULT_PLAYERS: string[] = [];
 
-// Jugadores del Bombo 1 que NO pueden emparejarse con los del Bombo 2 listados abajo,
-// ni pueden quedar en el mismo grupo que sus parejas.
+// Restricción de PAREJA: estos jugadores del Bombo 1 no pueden emparejarse con los de RESTRICTED_BOMBO2.
 const RESTRICTED_BOMBO1 = new Set(["teo", "juani"]);
 const RESTRICTED_BOMBO2 = new Set(["mariana", "ceci", "bibi", "luchi", "luciana"]);
+
+// Restricción de GRUPO adicional: estas parejas tampoco pueden quedar en el mismo grupo
+// que las parejas de los jugadores de RESTRICTED_BOMBO2 (aplica solo a la fase de grupos).
+const RESTRICTED_GROUP_EXTRA = new Set(["deian", "joa"]);
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -126,7 +129,9 @@ function createGroups(pairs: Team[], byePlayer: string | null, numGroups: number
   const sizes = Array.from({ length: g }, (_, i) => baseSize + (i < extras ? 1 : 0));
 
   // Split pairs into three categories for constraint-aware placement
-  const isRestB1 = (p: Team) => RESTRICTED_BOMBO1.has(p[0].toLowerCase()) || RESTRICTED_BOMBO1.has(p[1].toLowerCase());
+  const isRestB1 = (p: Team) =>
+    RESTRICTED_BOMBO1.has(p[0].toLowerCase()) || RESTRICTED_BOMBO1.has(p[1].toLowerCase()) ||
+    RESTRICTED_GROUP_EXTRA.has(p[0].toLowerCase()) || RESTRICTED_GROUP_EXTRA.has(p[1].toLowerCase());
   const isRestB2 = (p: Team) => RESTRICTED_BOMBO2.has(p[0].toLowerCase()) || RESTRICTED_BOMBO2.has(p[1].toLowerCase());
   const teoPairs     = shuffle(pairs.filter(p => isRestB1(p)));
   const restPairs    = shuffle(pairs.filter(p => !isRestB1(p) && isRestB2(p)));
