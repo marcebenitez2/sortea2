@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Sorteaditos — Torneo de Pádel",
+  title: "Torneito — Torneo de Pádel",
   description: "Organizador de parejas para torneos de pádel",
 };
 

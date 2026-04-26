@@ -283,6 +283,8 @@ export function TournamentOrganizer() {
   const [numGroups, setNumGroups] = useState<number>(saved.numGroups ?? 4);
   const [advancing, setAdvancing] = useState<1 | 2>(saved.advancing ?? 2);
   const [bracketRounds, setBracketRounds] = useState<BracketRound[]>(saved.bracketRounds ?? []);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionMsg, setTransitionMsg] = useState("");
 
   useEffect(() => {
     try {
@@ -314,6 +316,17 @@ export function TournamentOrganizer() {
   ];
   const phaseIdx = phaseSteps.findIndex((s) => s.key === phase);
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  function withTransition(msg: string, action: () => void, delay = 900) {
+    setIsTransitioning(true);
+    setTransitionMsg(msg);
+    setTimeout(() => {
+      action();
+      setIsTransitioning(false);
+    }, delay);
+  }
+
   // ── Handlers ───────────────────────────────────────────────────────────────
 
   function addPlayer() {
@@ -339,69 +352,60 @@ export function TournamentOrganizer() {
   }
 
   function doSortear() {
+    let resultPairs: Team[] = [];
+    let resultBye: string | null = null;
+    let resultDouble: string | null = null;
+
     if (twoListMode) {
       if (players.length < 1 || players2.length < 1 || Math.abs(players.length - players2.length) > 1) return;
-
-      // Split each bombo into restricted and free subsets
-      const rb1  = shuffle(players.filter(p => RESTRICTED_BOMBO1.has(p.toLowerCase())));
-      const fb1  = shuffle(players.filter(p => !RESTRICTED_BOMBO1.has(p.toLowerCase())));
-      const rb2  = shuffle(players2.filter(p => RESTRICTED_BOMBO2.has(p.toLowerCase())));
-      const fb2  = shuffle(players2.filter(p => !RESTRICTED_BOMBO2.has(p.toLowerCase())));
-
-      const newPairs: Team[] = [];
-
+      const rb1 = shuffle(players.filter(p => RESTRICTED_BOMBO1.has(p.toLowerCase())));
+      const fb1 = shuffle(players.filter(p => !RESTRICTED_BOMBO1.has(p.toLowerCase())));
+      const rb2 = shuffle(players2.filter(p => RESTRICTED_BOMBO2.has(p.toLowerCase())));
+      const fb2 = shuffle(players2.filter(p => !RESTRICTED_BOMBO2.has(p.toLowerCase())));
       if (fb2.length >= rb1.length && fb1.length >= rb2.length) {
-        // Constrained path: rb1 → fb2, rb2 → fb1, remainder free
-        for (let i = 0; i < rb1.length; i++) newPairs.push([rb1[i], fb2[i]]);
-        for (let i = 0; i < rb2.length; i++) newPairs.push([fb1[i], rb2[i]]);
+        for (let i = 0; i < rb1.length; i++) resultPairs.push([rb1[i], fb2[i]]);
+        for (let i = 0; i < rb2.length; i++) resultPairs.push([fb1[i], rb2[i]]);
         const remFb1 = fb1.slice(rb2.length);
         const remFb2 = fb2.slice(rb1.length);
         const minLen = Math.min(remFb1.length, remFb2.length);
-        for (let i = 0; i < minLen; i++) newPairs.push([remFb1[i], remFb2[i]]);
-        let newDouble: string | null = null;
+        for (let i = 0; i < minLen; i++) resultPairs.push([remFb1[i], remFb2[i]]);
         if (remFb2.length > remFb1.length) {
           const idx = Math.floor(Math.random() * remFb1.length);
-          newDouble = remFb1[idx];
-          newPairs.push([newDouble, remFb2[minLen]]);
+          resultDouble = remFb1[idx];
+          resultPairs.push([resultDouble, remFb2[minLen]]);
         } else if (remFb1.length > remFb2.length) {
           const idx = Math.floor(Math.random() * remFb2.length);
-          newDouble = remFb2[idx];
-          newPairs.push([remFb1[minLen], newDouble]);
+          resultDouble = remFb2[idx];
+          resultPairs.push([remFb1[minLen], resultDouble]);
         }
-        setPairs(newPairs);
-        setByePlayer(null);
-        setDoublePlayer(newDouble);
       } else {
-        // Fallback: unconstrained (constraints can't be satisfied with current lists)
         const s1 = shuffle([...players]);
         const s2 = shuffle([...players2]);
         const minLen = Math.min(s1.length, s2.length);
-        for (let i = 0; i < minLen; i++) newPairs.push([s1[i], s2[i]]);
-        let newDouble: string | null = null;
+        for (let i = 0; i < minLen; i++) resultPairs.push([s1[i], s2[i]]);
         if (s2.length > s1.length) {
           const idx = Math.floor(Math.random() * s1.length);
-          newDouble = s1[idx];
-          newPairs.push([newDouble, s2[minLen]]);
+          resultDouble = s1[idx];
+          resultPairs.push([resultDouble, s2[minLen]]);
         } else if (s1.length > s2.length) {
           const idx = Math.floor(Math.random() * s2.length);
-          newDouble = s2[idx];
-          newPairs.push([s1[minLen], newDouble]);
+          resultDouble = s2[idx];
+          resultPairs.push([s1[minLen], resultDouble]);
         }
-        setPairs(newPairs);
-        setByePlayer(null);
-        setDoublePlayer(newDouble);
       }
     } else {
       if (players.length < 2) return;
       const shuffled = shuffle(players);
-      const newPairs: Team[] = [];
       for (let i = 0; i + 1 < shuffled.length; i += 2)
-        newPairs.push([shuffled[i], shuffled[i + 1]]);
-      const bye = shuffled.length % 2 === 1 ? shuffled[shuffled.length - 1] : null;
-      setPairs(newPairs);
-      setByePlayer(bye);
-      setDoublePlayer(null);
+        resultPairs.push([shuffled[i], shuffled[i + 1]]);
+      resultBye = shuffled.length % 2 === 1 ? shuffled[shuffled.length - 1] : null;
     }
+
+    withTransition("Sorteando parejas...", () => {
+      setPairs(resultPairs);
+      setByePlayer(resultBye);
+      setDoublePlayer(resultDouble);
+    }, 1200);
   }
 
   function resetSort() {
@@ -411,8 +415,11 @@ export function TournamentOrganizer() {
   }
 
   function armarGrupos() {
-    setGroups(createGroups(pairs, byePlayer, numGroups));
-    setPhase("groups");
+    const newGroups = createGroups(pairs, byePlayer, numGroups);
+    withTransition("Armando grupos...", () => {
+      setGroups(newGroups);
+      setPhase("groups");
+    });
   }
 
   function volverSorteo() {
@@ -436,8 +443,11 @@ export function TournamentOrganizer() {
   }
 
   function armarLlaves() {
-    setBracketRounds([buildInitialBracket(groups, advancing)]);
-    setPhase("bracket");
+    const bracket = buildInitialBracket(groups, advancing);
+    withTransition("Armando llaves...", () => {
+      setBracketRounds([bracket]);
+      setPhase("bracket");
+    });
   }
 
   function updateBracketScore(ri: number, mi: number, field: "score1" | "score2", val: string) {
@@ -457,7 +467,10 @@ export function TournamentOrganizer() {
   function avanzarRonda() {
     const cur = bracketRounds[bracketRounds.length - 1];
     const nr = nextRound(cur);
-    if (nr) setBracketRounds((p) => [...p, nr]);
+    if (!nr) return;
+    withTransition("Avanzando ronda...", () => {
+      setBracketRounds((p) => [...p, nr]);
+    }, 700);
   }
 
   function reiniciar() {
@@ -485,7 +498,7 @@ export function TournamentOrganizer() {
       <header className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-400 text-white shadow-md">
         <div className="px-6 py-5 flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Sorteaditos</h1>
+            <h1 className="text-2xl font-bold tracking-tight">Torneito</h1>
             <p className="text-emerald-100 text-sm mt-0.5">Torneo de padel</p>
           </div>
           <div className="flex items-center gap-3">
@@ -524,8 +537,22 @@ export function TournamentOrganizer() {
 
       <main className="px-6 py-6 space-y-6">
 
+        {/* ══ LOADING OVERLAY ════════════════════════════════════════════════ */}
+        {isTransitioning && (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
+            <div className="relative size-20">
+              <div className="absolute inset-0 rounded-full border-4 border-emerald-100 dark:border-emerald-900/40" />
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-emerald-500 animate-spin" />
+              <div className="absolute inset-3 rounded-full border-4 border-transparent border-t-teal-400 animate-spin [animation-duration:0.7s] [animation-direction:reverse]" />
+            </div>
+            <p className="text-lg font-semibold text-emerald-700 dark:text-emerald-400 animate-pulse tracking-wide">
+              {transitionMsg}
+            </p>
+          </div>
+        )}
+
         {/* ══ SORTING PHASE ══════════════════════════════════════════════════ */}
-        {phase === "sorting" && (
+        {!isTransitioning && phase === "sorting" && (
           <>
             {/* Mode toggle — only shown before draw */}
             {pairs.length === 0 && (
@@ -818,7 +845,7 @@ export function TournamentOrganizer() {
         )}
 
         {/* ══ GROUPS PHASE ═══════════════════════════════════════════════════ */}
-        {phase === "groups" && (
+        {!isTransitioning && phase === "groups" && (
           <section className="space-y-5">
             {/* Controls bar */}
             <div className="flex items-center gap-3 flex-wrap">
@@ -1054,7 +1081,7 @@ export function TournamentOrganizer() {
         )}
 
         {/* ══ BRACKET PHASE ══════════════════════════════════════════════════ */}
-        {phase === "bracket" && (
+        {!isTransitioning && phase === "bracket" && (
           <section className="space-y-10">
             {winner && (
               <div className="flex justify-center">
